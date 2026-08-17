@@ -1,18 +1,11 @@
 allprojects {
     repositories {
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/google' }
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
-        maven { url 'https://maven.google.com' }
-    }
-}
-
-subprojects {
-    configurations.all {
-        resolutionStrategy {
-            force 'com.arthenica:ffmpeg-kit-https:6.0.LTS'
-            force 'com.arthenica:ffmpeg-kit-min:6.0.LTS'
-        }
     }
 }
 
