@@ -1,0 +1,36 @@
+name: chumian_aijian
+description: "初眠爱剪 - 专业横屏视频剪辑应用"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  video_player: ^2.9.1
+  file_picker: ^8.0.0+1
+  path_provider: ^2.1.3
+  shared_preferences: ^2.2.3
+  http: ^1.2.1
+  image: ^4.1.7
+  provider: ^6.1.2
+  uuid: ^4.4.0
+  intl: ^0.19.0
+  permission_handler: ^11.3.1
+  ffmpeg_kit_flutter: ^6.0.3
+  google_fonts: ^6.2.1
+  wakelock_plus: ^1.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/shaders/
