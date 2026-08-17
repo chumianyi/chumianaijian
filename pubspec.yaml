@@ -22,15 +22,11 @@ dependencies:
   permission_handler: ^11.3.1
   ffmpeg_kit_flutter: ^6.0.3
   google_fonts: ^6.2.1
-  wakelock_plus: ^1.2.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-
-dependency_overrides:
-  package_info_plus: ^8.0.2
 
 flutter:
   uses-material-design: true
