@@ -7,6 +7,15 @@ allprojects {
     }
 }
 
+subprojects {
+    configurations.all {
+        resolutionStrategy {
+            force 'com.arthenica:ffmpeg-kit-https:6.0.LTS'
+            force 'com.arthenica:ffmpeg-kit-min:6.0.LTS'
+        }
+    }
+}
+
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
