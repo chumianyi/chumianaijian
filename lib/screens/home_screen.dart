@@ -14,6 +14,8 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+    final cardWidth = isPortrait ? (MediaQuery.of(context).size.width - 32 * 2 - 20) / 2 : 200.0;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
@@ -46,7 +48,7 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     const Text('初眠爱剪', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
-                    Text('专业横屏视频剪辑 · AI超能剪', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    Text('专业视频剪辑 · AI超能剪', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                   ],
                 ),
               ),
@@ -60,6 +62,7 @@ class HomeScreen extends StatelessWidget {
                     title: '开始剪辑',
                     subtitle: '新建项目，导入素材',
                     color: AppColors.primary,
+                    width: cardWidth,
                     onTap: () async {
                       final controller = context.read<EditorController>();
                       await controller.createNewProject();
@@ -74,6 +77,7 @@ class HomeScreen extends StatelessWidget {
                     title: '草稿箱',
                     subtitle: '继续编辑已有项目',
                     color: AppColors.accent,
+                    width: cardWidth,
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DraftsScreen())),
                   ),
                 ],
@@ -87,6 +91,7 @@ class HomeScreen extends StatelessWidget {
                     title: '设置',
                     subtitle: '偏好与AI配置',
                     color: AppColors.success,
+                    width: cardWidth,
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
                   ),
                   const SizedBox(width: 20),
@@ -95,6 +100,7 @@ class HomeScreen extends StatelessWidget {
                     title: '致谢',
                     subtitle: '开源项目与许可',
                     color: AppColors.error,
+                    width: cardWidth,
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreditsScreen())),
                   ),
                 ],
@@ -144,6 +150,7 @@ class _HomeActionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Color color;
+  final double width;
   final VoidCallback onTap;
 
   const _HomeActionCard({
@@ -152,6 +159,7 @@ class _HomeActionCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.width = 200,
   });
 
   @override
@@ -160,7 +168,7 @@ class _HomeActionCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: 16,
       blur: 12,
-      width: 200,
+      width: width,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [

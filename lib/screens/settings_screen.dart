@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/editor_controller.dart';
+import '../controllers/app_controller.dart';
 import '../models/ai_config.dart';
 import '../theme/colors.dart';
+import '../theme/neumorphism_theme.dart';
 import '../widgets/common/neu_widgets.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -99,6 +101,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            // 屏幕方向
+            _buildOrientationCard(),
+            const SizedBox(height: 20),
+            // UI缩放
+            _buildUIScaleCard(),
+            const SizedBox(height: 20),
             // AI Config
             NeuContainer(
               borderRadius: 12,
@@ -183,6 +191,138 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildOrientationCard() {
+    final appController = context.watch<AppController>();
+    return NeuContainer(
+      borderRadius: 12,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.screen_rotation, size: 20, color: AppColors.primary),
+              SizedBox(width: 8),
+              Text('屏幕方向', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _OrientationOption(
+                  label: '自动',
+                  icon: Icons.auto_awesome,
+                  selected: appController.orientation == ScreenOrientation.auto,
+                  onTap: () => appController.setOrientation(ScreenOrientation.auto),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OrientationOption(
+                  label: '横屏',
+                  icon: Icons.stay_current_landscape,
+                  selected: appController.orientation == ScreenOrientation.landscape,
+                  onTap: () => appController.setOrientation(ScreenOrientation.landscape),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OrientationOption(
+                  label: '竖屏',
+                  icon: Icons.stay_current_portrait,
+                  selected: appController.orientation == ScreenOrientation.portrait,
+                  onTap: () => appController.setOrientation(ScreenOrientation.portrait),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('选择编辑器和全局界面的屏幕方向，默认自动适配', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUIScaleCard() {
+    final appController = context.watch<AppController>();
+    final currentIndex = AppController.scalePresets.indexOf(appController.uiScale).clamp(0, AppController.scalePresets.length - 1);
+    return NeuContainer(
+      borderRadius: 12,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.zoom_in, size: 20, color: AppColors.primary),
+              SizedBox(width: 8),
+              Text('界面大小', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: List.generate(AppController.scalePresets.length, (i) {
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < AppController.scalePresets.length - 1 ? 8 : 0),
+                  child: _OrientationOption(
+                    label: AppController.scaleLabels[i],
+                    icon: i == 0 ? Icons.text_fields : (i == 1 ? Icons.text_fields : (i == 2 ? Icons.format_size : Icons.format_size)),
+                    selected: currentIndex == i,
+                    onTap: () => appController.setUIScale(AppController.scalePresets[i]),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 12),
+          NeuSlider(
+            label: '缩放: ${(appController.uiScale * 100).toStringAsFixed(0)}%',
+            value: appController.uiScale,
+            min: 0.8,
+            max: 1.4,
+            divisions: 6,
+            onChanged: (v) => appController.setUIScale(v),
+          ),
+          const SizedBox(height: 8),
+          Text('调整全局文字和界面元素大小，设置后立即生效', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrientationOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _OrientationOption({required this.label, required this.icon, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withOpacity(0.12) : AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? AppColors.primary : Colors.transparent, width: 1.5),
+          boxShadow: selected ? null : NeuShadow.flat(blur: 4),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 18, color: selected ? AppColors.primary : AppColors.textSecondary),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 11, color: selected ? AppColors.primary : AppColors.textSecondary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
+          ],
+        ),
+      ),
     );
   }
 }

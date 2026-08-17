@@ -27,20 +27,17 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _showImportPanel = false;
   bool _showAIPanel = false;
   bool _showExportPanel = false;
+  bool _showPropertiesPanel = false; // 竖屏时属性面板是否展开
   final TextEditingController _aiPromptController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // 方向由AppController全局控制，这里不再强制
   }
 
   @override
   void dispose() {
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _aiPromptController.dispose();
     super.dispose();
   }
@@ -112,6 +109,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     return Consumer<EditorController>(
       builder: (context, controller, _) {
         return WillPopScope(
@@ -137,23 +135,26 @@ class _EditorScreenState extends State<EditorScreen> {
                           onSettings: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
                           onCredits: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreditsScreen())),
                         ),
-                        const ToolBar(),
+                        if (!isPortrait) const ToolBar(),
                         Expanded(
-                          child: Row(
-                            children: [
-                              _buildLeftToolbar(controller),
-                              const Expanded(child: VideoPreview()),
-                              const PropertiesPanel(),
-                            ],
-                          ),
+                          child: isPortrait
+                              ? _buildPortraitLayout(controller)
+                              : _buildLandscapeLayout(),
                         ),
-                        const SizedBox(height: 200, child: TimelineWidget()),
+                        if (isPortrait)
+                          _buildPortraitPropertiesToggle(controller),
+                        SizedBox(
+                          height: isPortrait ? 160 : 200,
+                          child: const TimelineWidget(),
+                        ),
                         _buildStatusBar(controller),
                       ],
                     ),
                     _buildImportPanel(),
                     if (_showAIPanel) _buildAIPanel(controller),
                     if (_showExportPanel) _buildExportPanel(),
+                    // 竖屏属性面板抽屉
+                    if (isPortrait && _showPropertiesPanel) _buildPortraitPropertiesDrawer(),
                   ],
                 ),
               ),
@@ -167,6 +168,74 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLandscapeLayout() {
+    return Row(
+      children: [
+        _buildLeftToolbar(context.read<EditorController>()),
+        const Expanded(child: VideoPreview()),
+        const PropertiesPanel(),
+      ],
+    );
+  }
+
+  Widget _buildPortraitLayout(EditorController controller) {
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              _buildLeftToolbar(controller),
+              const Expanded(child: VideoPreview()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPortraitPropertiesToggle(EditorController controller) {
+    return Container(
+      height: 36,
+      color: AppColors.surface,
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          const Icon(Icons.tune, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          const Text('属性面板', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          const Spacer(),
+          TextButton(
+            onPressed: () => setState(() => _showPropertiesPanel = !_showPropertiesPanel),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_showPropertiesPanel ? '收起' : '展开', style: const TextStyle(fontSize: 12, color: AppColors.primary)),
+                Icon(_showPropertiesPanel ? Icons.expand_more : Icons.expand_less, size: 16, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortraitPropertiesDrawer() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 184, // 时间轴高度+状态栏
+      child: Container(
+        height: 280,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, -4))],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: const PropertiesPanel(),
+      ),
     );
   }
 
