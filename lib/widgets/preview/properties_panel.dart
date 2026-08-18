@@ -305,7 +305,7 @@ class _PropertiesPanelState extends State<PropertiesPanel> with SingleTickerProv
           min: 0.25,
           max: 4,
           divisions: 15,
-          onChanged: (v) {},
+          onChanged: (v) { context.read<EditorController>().setClipSpeed(clip.id, v); },
         ),
         const SizedBox(height: 16),
         Text('音频轨道将在导出时混合', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),

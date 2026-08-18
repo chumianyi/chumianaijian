@@ -39,7 +39,7 @@ class EditorController extends ChangeNotifier {
   double _zoom = 1.0;
   double get zoom => _zoom;
 
-  bool _touchMode = false;
+  bool _touchMode = true;
   bool get touchMode => _touchMode;
 
   AIConfig _aiConfig = AIConfig();
@@ -342,6 +342,23 @@ class EditorController extends ChangeNotifier {
   }
 
   // Playback
+  Future<void> setClipSpeed(String clipId, double speed) async {
+    final clip = _findClip(clipId);
+    if (clip == null) return;
+    clip.speed = speed;
+    await _saveDraft();
+    notifyListeners();
+  }
+
+  Future<void> setClipPosition(String clipId, double x, double y) async {
+    final clip = _findClip(clipId);
+    if (clip == null) return;
+    clip.positionX = x;
+    clip.positionY = y;
+    await _saveDraft();
+    notifyListeners();
+  }
+
   void setPlayhead(Duration time) {
     if (_project == null) return;
     _playhead = Duration(milliseconds: time.inMilliseconds.clamp(0, _project!.totalDuration.inMilliseconds));

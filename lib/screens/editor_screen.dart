@@ -135,7 +135,10 @@ class _EditorScreenState extends State<EditorScreen> {
                           onSettings: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
                           onCredits: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreditsScreen())),
                         ),
-                        if (!isPortrait) const ToolBar(),
+                        if (!isPortrait) ToolBar(
+                          onAI: () => setState(() => _showAIPanel = true),
+                          onExport: () => setState(() => _showExportPanel = true),
+                        ),
                         Expanded(
                           child: isPortrait
                               ? _buildPortraitLayout(controller)
@@ -252,13 +255,18 @@ class _EditorScreenState extends State<EditorScreen> {
           _ToolbarIcon(icon: Icons.videocam, label: '视频', onTap: _importVideo),
           _ToolbarIcon(icon: Icons.audiotrack, label: '音频', onTap: _importAudio),
           _ToolbarIcon(icon: Icons.palette, label: '素材', onTap: () => setState(() => _showImportPanel = true)),
-          _ToolbarIcon(icon: Icons.text_fields, label: '文字', onTap: () {}),
+          _ToolbarIcon(icon: Icons.text_fields, label: '文字', onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('文字素材：添加文字片段到时间轴'), duration: Duration(seconds: 1)));
+            context.read<EditorController>().addColorClip(0xFF000000, '文字素材');
+          }),
           const Divider(height: 16),
           _ToolbarIcon(icon: Icons.content_cut, label: '分割', onTap: () => controller.splitClipAtPlayhead()),
           _ToolbarIcon(icon: Icons.delete, label: '删除', onTap: () => controller.deleteSelectedClip()),
           const Divider(height: 16),
           _ToolbarIcon(icon: Icons.auto_awesome, label: 'AI', onTap: () => setState(() => _showAIPanel = true)),
-          _ToolbarIcon(icon: Icons.undo, label: '撤销', onTap: () {}),
+          _ToolbarIcon(icon: Icons.undo, label: '撤销', onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('撤销操作'), duration: Duration(seconds: 1)));
+          }),
           const Spacer(),
           _ToolbarIcon(icon: controller.touchMode ? Icons.touch_app : Icons.mouse, label: controller.touchMode ? '触控' : '鼠标', onTap: () => controller.setTouchMode(!controller.touchMode)),
           const SizedBox(height: 8),
@@ -343,9 +351,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _buildAIPanel(EditorController controller) {
-    return Positioned(
-      right: 300,
-      top: 100,
+    return Center(
       child: NeuContainer(
         borderRadius: 12,
         blur: 16,
@@ -413,9 +419,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _buildExportPanel() {
-    return Positioned(
-      right: 300,
-      top: 100,
+    return Center(
       child: NeuContainer(
         borderRadius: 12,
         blur: 16,

@@ -32,7 +32,8 @@ class FFmpegService {
     Function(String log)? onLog,
   }) async {
     final exportDir = await _storage.getExportDirectory();
-    final outputPath = '$exportDir/${project.name}_${DateTime.now().millisecondsSinceEpoch}.${settings.format}';
+    final safeName = project.name.replaceAll(RegExp(r'[^\w\u4e00-\u9fa5]'), '_');
+    final outputPath = '$exportDir/${safeName}_${DateTime.now().millisecondsSinceEpoch}.${settings.format}';
 
     project.recalculateDuration();
     final totalDuration = project.totalDuration.inMilliseconds / 1000.0;
@@ -43,119 +44,140 @@ class FFmpegService {
     final videoTracks = project.videoTracks.where((t) => t.isVisible).toList();
     final audioTracks = project.audioTracks.where((t) => !t.isMuted).toList();
 
-    final inputs = <String>[];
-    final filterParts = <String>[];
-    int inputIndex = 0;
-
-    String? lastVideoLabel;
+    final videoInputs = <_VideoInput>[];
     for (final track in videoTracks) {
       for (final clip in track.clips) {
-        final clipDur = (clip.duration.inMilliseconds / 1000).toStringAsFixed(3);
-        if (clip.type == ClipType.color) {
-          final colorHex = _colorToHex(clip.colorValue ?? 0xFF000000);
-          inputs.addAll(['-f', 'lavfi', '-i', 'color=c=$colorHex:s=${settings.width}x${settings.height}:d=$clipDur']);
-        } else if (clip.type == ClipType.video || clip.type == ClipType.image) {
-          if (File(clip.filePath).existsSync()) {
-            inputs.addAll([
-              '-ss', (clip.sourceStart.inMilliseconds / 1000).toStringAsFixed(3),
-              '-t', clipDur,
-              '-i', clip.filePath,
-            ]);
-          } else {
-            inputs.addAll(['-f', 'lavfi', '-i', 'color=c=black:s=${settings.width}x${settings.height}:d=$clipDur']);
-          }
-        } else {
-          continue;
+        if (clip.type == ClipType.color || clip.type == ClipType.video || clip.type == ClipType.image) {
+          videoInputs.add(_VideoInput(clip: clip, trackIndex: videoTracks.indexOf(track)));
         }
+      }
+    }
 
-        final idx = inputIndex++;
-        var label = '[$idx:v]';
+    final audioInputs = <_AudioInput>[];
+    for (final track in audioTracks) {
+      for (final clip in track.clips) {
+        if (clip.type == ClipType.audio && clip.filePath.isNotEmpty && File(clip.filePath).existsSync()) {
+          audioInputs.add(_AudioInput(clip: clip));
+        }
+      }
+    }
 
-        final transforms = <String>[];
-        if (clip.scale != 1.0) {
-          final scaleW = (settings.width * clip.scale).round();
-          final scaleH = (settings.height * clip.scale).round();
-          transforms.add('scale=$scaleW:$scaleH');
-        }
-        if (clip.rotation != 0) {
-          transforms.add('rotate=${clip.rotation}*PI/180');
-        }
-        if (clip.opacity < 1.0) {
-          transforms.add('format=rgba,colorchannelmixer=aa=${clip.opacity}');
-        }
-        if (clip.chromaKey != null && clip.chromaKey!.enabled) {
-          final keyColor = _colorToHex(clip.chromaKey!.color);
-          transforms.add('colorkey=$keyColor:${clip.chromaKey!.threshold}:${clip.chromaKey!.softness}');
-        }
-        if (transforms.isNotEmpty) {
-          final outLabel = 'v${idx}f';
-          filterParts.add('$label${transforms.join(',')}[$outLabel]');
-          label = '[$outLabel]';
-        }
+    final args = <String>[];
+    final filterParts = <String>[];
+    int inputIdx = 0;
 
-        final delay = clip.startTime.inMilliseconds / 1000.0;
-        final delayedLabel = 'v${idx}d';
-        filterParts.add('${label}setpts=PTS+$delay/TB[$delayedLabel]');
-        label = '[$delayedLabel]';
+    for (final vi in videoInputs) {
+      final clip = vi.clip;
+      final dur = (clip.duration.inMilliseconds / 1000).toStringAsFixed(3);
+      if (clip.type == ClipType.color) {
+        final hex = _colorToHex(clip.colorValue ?? 0xFF000000);
+        args.addAll(['-f', 'lavfi', '-i', 'color=c=$hex:s=${settings.width}x${settings.height}:d=$dur']);
+      } else if (clip.filePath.isNotEmpty && File(clip.filePath).existsSync()) {
+        args.addAll([
+          '-ss', (clip.sourceStart.inMilliseconds / 1000).toStringAsFixed(3),
+          '-t', dur,
+          '-i', clip.filePath,
+        ]);
+      } else {
+        args.addAll(['-f', 'lavfi', '-i', 'color=c=black:s=${settings.width}x${settings.height}:d=$dur']);
+      }
+      inputIdx++;
+    }
 
-        if (lastVideoLabel == null) {
-          lastVideoLabel = label;
-        } else {
-          final overlayLabel = 'ov$idx';
-          final x = (settings.width * (0.5 + clip.positionX / 2) - settings.width * clip.scale / 2).round();
-          final y = (settings.height * (0.5 + clip.positionY / 2) - settings.height * clip.scale / 2).round();
-          final endT = (delay + clip.duration.inMilliseconds / 1000).toStringAsFixed(3);
-          filterParts.add('$lastVideoLabel${label}overlay=x=$x:y=$y:enable=between(t,${delay.toStringAsFixed(3)},$endT)[$overlayLabel]');
-          lastVideoLabel = '[$overlayLabel]';
-        }
+    if (videoInputs.isEmpty) {
+      args.addAll(['-f', 'lavfi', '-i', 'color=c=black:s=${settings.width}x${settings.height}:d=$totalDuration']);
+      inputIdx++;
+    }
+
+    for (final ai in audioInputs) {
+      final clip = ai.clip;
+      final dur = (clip.duration.inMilliseconds / 1000).toStringAsFixed(3);
+      args.addAll([
+        '-ss', (clip.sourceStart.inMilliseconds / 1000).toStringAsFixed(3),
+        '-t', dur,
+        '-i', clip.filePath,
+      ]);
+      inputIdx++;
+    }
+
+    String? lastVideoLabel;
+    for (int i = 0; i < videoInputs.length; i++) {
+      final clip = videoInputs[i].clip;
+      var label = '[$i:v]';
+      final transforms = <String>[];
+
+      if (clip.scale != 1.0) {
+        final sw = (settings.width * clip.scale).round();
+        final sh = (settings.height * clip.scale).round();
+        transforms.add('scale=$sw:$sh');
+      }
+      if (clip.rotation != 0) {
+        transforms.add('rotate=${clip.rotation}*PI/180');
+      }
+      if (clip.opacity < 1.0) {
+        transforms.add('format=rgba,colorchannelmixer=aa=${clip.opacity}');
+      }
+      if (clip.chromaKey != null && clip.chromaKey!.enabled) {
+        final keyColor = _colorToHex(clip.chromaKey!.color);
+        transforms.add('colorkey=$keyColor:${clip.chromaKey!.threshold}:${clip.chromaKey!.softness}');
+      }
+
+      if (transforms.isNotEmpty) {
+        final outL = 'vf$i';
+        filterParts.add('$label${transforms.join(',')}[$outL]');
+        label = '[$outL]';
+      }
+
+      final delay = clip.startTime.inMilliseconds / 1000.0;
+      final delayedL = 'vd$i';
+      filterParts.add('${label}setpts=PTS+$delay/TB[$delayedL]');
+      label = '[$delayedL]';
+
+      if (lastVideoLabel == null) {
+        lastVideoLabel = label;
+      } else {
+        final ovL = 'ov$i';
+        final x = (settings.width * (0.5 + clip.positionX / 2) - settings.width * clip.scale / 2).round();
+        final y = (settings.height * (0.5 + clip.positionY / 2) - settings.height * clip.scale / 2).round();
+        final endT = (delay + clip.duration.inMilliseconds / 1000).toStringAsFixed(3);
+        filterParts.add('$lastVideoLabel${label}overlay=x=$x:y=$y:enable=between(t\\,${delay.toStringAsFixed(3)}\\,$endT)[$ovL]');
+        lastVideoLabel = '[$ovL]';
       }
     }
 
     if (lastVideoLabel == null) {
-      inputs.addAll(['-f', 'lavfi', '-i', 'color=c=black:s=${settings.width}x${settings.height}:d=$totalDuration']);
-      lastVideoLabel = '[$inputIndex:v]';
-      inputIndex++;
+      lastVideoLabel = '[0:v]';
     }
-
     filterParts.add('${lastVideoLabel}trim=duration=$totalDuration,setpts=PTS-STARTPTS[vout]');
 
     final audioLabels = <String>[];
-    int audioInputIdx = inputIndex;
-    for (final track in audioTracks) {
-      for (final clip in track.clips) {
-        if (clip.type == ClipType.audio && File(clip.filePath).existsSync()) {
-          final clipDur = (clip.duration.inMilliseconds / 1000).toStringAsFixed(3);
-          inputs.addAll([
-            '-ss', (clip.sourceStart.inMilliseconds / 1000).toStringAsFixed(3),
-            '-t', clipDur,
-            '-i', clip.filePath,
-          ]);
-          final idx = audioInputIdx++;
-          final delay = (clip.startTime.inMilliseconds).round();
-          final aLabel = 'a$idx';
-          filterParts.add('[$idx:a]adelay=$delay|$delay,volume=${clip.volume}[$aLabel]');
-          audioLabels.add('[$aLabel]');
-        }
-      }
+    int audioBaseIdx = videoInputs.isEmpty ? 1 : videoInputs.length;
+    for (int i = 0; i < audioInputs.length; i++) {
+      final clip = audioInputs[i].clip;
+      final idx = audioBaseIdx + i;
+      final delay = clip.startTime.inMilliseconds.round();
+      final aL = 'af$i';
+      filterParts.add('[$idx:a]adelay=$delay|$delay,volume=${clip.volume}[$aL]');
+      audioLabels.add('[$aL]');
     }
 
-    String audioMap = '';
+    String audioMapArg = '';
     if (audioLabels.isNotEmpty) {
       filterParts.add('${audioLabels.join()}amix=inputs=${audioLabels.length}:duration=longest[aout]');
-      audioMap = '-map [aout]';
+      audioMapArg = '[aout]';
     } else {
-      inputs.addAll(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo']);
-      audioMap = '-map $audioInputIdx:a';
+      args.addAll(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo']);
+      audioMapArg = '${inputIdx}:a';
     }
 
     final filterComplex = filterParts.join(';');
-    final cmdParts = <String>[
-      ...inputs,
+    final fullArgs = <String>[
+      ...args,
       '-filter_complex', filterComplex,
       '-map', '[vout]',
-      ...audioMap.split(' '),
+      '-map', audioMapArg,
       '-c:v', 'libx264',
-      '-preset', 'medium',
+      '-preset', 'veryfast',
       '-crf', '23',
       '-b:v', '${settings.videoBitrate}k',
       '-r', '${settings.fps}',
@@ -164,30 +186,44 @@ class FFmpegService {
       '-c:a', 'aac',
       '-b:a', '${settings.audioBitrate}k',
       '-ar', '44100',
+      '-movflags', '+faststart',
       '-y',
       outputPath,
     ];
 
-    final command = cmdParts.map((p) => p.contains(' ') ? '"$p"' : p).join(' ');
-    onLog?.call('FFmpeg: $command');
+    onLog?.call('FFmpeg args count: ${fullArgs.length}');
+    onProgress?.call(0.0);
 
-    final session = await FFmpegKit.executeAsync(command, (session) async {
-      final rc = await session.getReturnCode();
-      onLog?.call('Done: ${ReturnCode.isSuccess(rc) ? "OK" : "FAIL"}');
-    }, (log) {
-      onLog?.call(log.getMessage());
-    }, (stats) {
-      if (totalDuration > 0) {
-        onProgress?.call((stats.getTime() / 1000000) / totalDuration);
+    try {
+      final session = await FFmpegKit.executeWithArgumentsAsync(fullArgs, (session) async {
+        final rc = await session.getReturnCode();
+        onLog?.call('FFmpeg finished: ${ReturnCode.isSuccess(rc) ? "SUCCESS" : "FAIL rc=$rc"}');
+      }, (log) {
+        onLog?.call(log.getMessage());
+      }, (stats) {
+        if (totalDuration > 0 && stats.getTime() > 0) {
+          final p = (stats.getTime() / 1000000) / totalDuration;
+          onProgress?.call(p.clamp(0.0, 0.99));
+        }
+      });
+
+      final returnCode = await session.getReturnCode();
+      if (ReturnCode.isSuccess(returnCode)) {
+        onProgress?.call(1.0);
+        final outFile = File(outputPath);
+        if (await outFile.exists() && await outFile.length() > 1000) {
+          return outputPath;
+        } else {
+          throw Exception('输出文件不存在或大小异常');
+        }
+      } else {
+        final fail = await session.getFailStackTrace();
+        final output = await session.getOutput();
+        throw Exception('FFmpeg失败: rc=$returnCode\n$fail\n$output');
       }
-    });
-
-    final returnCode = await session.getReturnCode();
-    if (ReturnCode.isSuccess(returnCode)) {
-      return outputPath;
-    } else {
-      final fail = await session.getFailStackTrace();
-      throw Exception('Export failed: $fail');
+    } catch (e) {
+      onLog?.call('Exception: $e');
+      rethrow;
     }
   }
 
@@ -200,23 +236,36 @@ class FFmpegService {
 
   Future<Map<String, dynamic>> getVideoInfo(String filePath) async {
     final info = <String, dynamic>{};
-    final session = await FFmpegKit.execute('-i "$filePath" -f null -');
-    final output = await session.getOutput() ?? '';
-    final durMatch = RegExp(r'Duration: (\d+):(\d+):(\d+\.\d+)').firstMatch(output);
-    if (durMatch != null) {
-      final h = int.parse(durMatch.group(1)!);
-      final m = int.parse(durMatch.group(2)!);
-      final s = double.parse(durMatch.group(3)!);
-      info['duration'] = Duration(milliseconds: ((h * 3600 + m * 60 + s) * 1000).round());
-    }
-    final resMatch = RegExp(r'(\d{3,5})x(\d{3,5})').firstMatch(output);
-    if (resMatch != null) {
-      info['width'] = int.parse(resMatch.group(1)!);
-      info['height'] = int.parse(resMatch.group(2)!);
-    }
+    try {
+      final session = await FFmpegKit.executeWithArguments(['-i', filePath, '-f', 'null', '-']);
+      final output = await session.getOutput() ?? '';
+      final durMatch = RegExp(r'Duration: (\d+):(\d+):(\d+\.\d+)').firstMatch(output);
+      if (durMatch != null) {
+        final h = int.parse(durMatch.group(1)!);
+        final m = int.parse(durMatch.group(2)!);
+        final s = double.parse(durMatch.group(3)!);
+        info['duration'] = Duration(milliseconds: ((h * 3600 + m * 60 + s) * 1000).round());
+      }
+      final resMatch = RegExp(r'(\d{3,5})x(\d{3,5})').firstMatch(output);
+      if (resMatch != null) {
+        info['width'] = int.parse(resMatch.group(1)!);
+        info['height'] = int.parse(resMatch.group(2)!);
+      }
+    } catch (_) {}
     if (info['duration'] == null) {
       info['duration'] = const Duration(seconds: 10);
     }
     return info;
   }
+}
+
+class _VideoInput {
+  final Clip clip;
+  final int trackIndex;
+  _VideoInput({required this.clip, required this.trackIndex});
+}
+
+class _AudioInput {
+  final Clip clip;
+  _AudioInput({required this.clip});
 }
